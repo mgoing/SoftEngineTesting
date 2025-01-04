@@ -24,6 +24,9 @@ namespace SoftEngineTesting
         { 1, 1, 1, 1, 1 }
         };
 
+        private int mapWidth = 5;  // Number of columns
+        private int mapHeight = 5; // Number of rows
+
         private Vector2 playerPos = new Vector2(2.5f, 2.5f);
         private Vector2 playerDir = new Vector2(1, 0);
         private Vector2 plane = new Vector2(0, 0.66f);
@@ -32,6 +35,10 @@ namespace SoftEngineTesting
         private bool isColliding = false;
         private float collisionFlashDuration = 0.5f; // Half a second
         private float collisionFlashTimer = 0.0f;
+        private Vector2 collisionPoint; // Location of the collision
+        private float collisionTimer; // Timer for displaying collision feedback
+        private const float collisionDisplayDuration = 0.5f; // Duration to show squares in seconds
+       
 
         public Game1()
         {
@@ -43,6 +50,10 @@ namespace SoftEngineTesting
         protected override void Initialize()
         {
             // TODO: Add your initialization logic here
+            // Dynamically calculate map dimensions
+            mapWidth = map.GetLength(1); // Columns (Width)
+            mapHeight = map.GetLength(0); // Rows (Height)
+            
             _graphics.PreferredBackBufferWidth = 800;
             _graphics.PreferredBackBufferHeight = 600;
             _graphics.ApplyChanges();
@@ -74,20 +85,38 @@ namespace SoftEngineTesting
             if (state.IsKeyDown(Keys.W)) newPlayerPos += playerDir * moveSpeed;
             if (state.IsKeyDown(Keys.S)) newPlayerPos -= playerDir * moveSpeed;
 
+            float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+            // Update collision timer
+            if (isColliding)
+            {
+                collisionTimer -= deltaTime;
+                if (collisionTimer <= 0)
+                {
+                    isColliding = false; // Stop showing collision feedback
+                }
+            }
+
             // Check collision with walls
             int newMapX = (int)newPlayerPos.X;
             int newMapY = (int)newPlayerPos.Y;
 
-            if (map[newMapX, newMapY] == 0) // Not a wall, move is valid
+            if (newMapX >= 0 && newMapX < mapWidth && newMapY >= 0 && newMapY < mapHeight)
             {
-                playerPos = newPlayerPos;
-                isColliding = false;
+                if (map[newMapX, newMapY] == 0) // Not a wall
+                {
+                    playerPos = newPlayerPos;
+                }
+                else
+                {
+                    // Collision detected, store collision point and start feedback
+                    isColliding = true;
+                    collisionPoint = new Vector2(newMapX, newMapY);
+                    collisionTimer = collisionDisplayDuration;
+                }
             }
-            else // Collision detected
-            {
-                isColliding = true;
-                collisionFlashTimer = collisionFlashDuration; // Reset flash timer
-            }
+
+
 
             // Handle rotation
             if (state.IsKeyDown(Keys.A)) playerDir = Rotate(playerDir, -rotSpeed);
@@ -112,24 +141,21 @@ namespace SoftEngineTesting
 
             // Create a reusable 1x1 pixel texture
             Texture2D pixel = new Texture2D(GraphicsDevice, 1, 1);
-            pixel.SetData(new[] { Color.BlueViolet });
+            pixel.SetData(new[] { Color.White });
 
             _spriteBatch.Begin();
 
-            // Draw the collision feedback
-            if (isColliding)
+            // Draw floor and ceiling
+            for (int y = 0; y < _graphics.PreferredBackBufferHeight / 2; y++) // Ceiling
             {
-                int squareSize = 20;
-                int numSquares = 10;
-                int spacing = 5;
+                Color ceilingColor = Color.DarkSlateGray; // Adjust as desired
+                _spriteBatch.Draw(pixel, new Rectangle(0, y, _graphics.PreferredBackBufferWidth, 1), ceilingColor);
+            }
 
-                for (int i = 0; i < numSquares; i++)
-                {
-                    int x = spacing + (squareSize + spacing) * i;
-                    int y = spacing;
-
-                    _spriteBatch.Draw(pixel, new Rectangle(x, y, squareSize, squareSize), Color.White);
-                }
+            for (int y = _graphics.PreferredBackBufferHeight / 2; y < _graphics.PreferredBackBufferHeight; y++) // Floor
+            {
+                Color floorColor = Color.Gray; // Adjust as desired
+                _spriteBatch.Draw(pixel, new Rectangle(0, y, _graphics.PreferredBackBufferWidth, 1), floorColor);
             }
 
             // Draw walls using raycasting (existing logic)
@@ -176,6 +202,12 @@ namespace SoftEngineTesting
 
                 while (!hit)
                 {
+                    if (mapX < 0 || mapX >= mapWidth || mapY < 0 || mapY >= mapHeight)
+                    {
+                        hit = true;
+                        break;
+                    }
+
                     if (sideDist.X < sideDist.Y)
                     {
                         sideDist.X += deltaDist.X;
@@ -188,6 +220,7 @@ namespace SoftEngineTesting
                         mapY += step.Y;
                         side = 1;
                     }
+
                     if (map[mapX, mapY] > 0) hit = true;
                 }
 
@@ -208,10 +241,34 @@ namespace SoftEngineTesting
                 _spriteBatch.Draw(pixel, new Rectangle(x, drawStart, 1, drawEnd - drawStart), color);
             }
 
+            if (isColliding)
+            {
+                int squareSize = 10; // Size of each square
+                int numSquares = 5; // Number of squares to display
+                for (int i = 0; i < numSquares; i++)
+                {
+                    // Offset each square slightly for a flashing effect
+                    int offsetX = (i % 2 == 0 ? 1 : -1) * squareSize * (i + 1);
+                    int offsetY = (i % 2 == 0 ? -1 : 1) * squareSize * (i + 1);
+
+                    _spriteBatch.Draw(
+                        pixel,
+                        new Rectangle(
+                            (int)(collisionPoint.X * squareSize + offsetX),
+                            (int)(collisionPoint.Y * squareSize + offsetY),
+                            squareSize,
+                            squareSize
+                        ),
+                        Color.White
+                    );
+                }
+            }
+
             _spriteBatch.End();
 
             base.Draw(gameTime);
         }
+
 
 
 
