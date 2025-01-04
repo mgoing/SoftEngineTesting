@@ -112,7 +112,7 @@ namespace SoftEngineTesting
 
             // Create a reusable 1x1 pixel texture
             Texture2D pixel = new Texture2D(GraphicsDevice, 1, 1);
-            pixel.SetData(new[] { Color.White });
+            pixel.SetData(new[] { Color.BlueViolet });
 
             _spriteBatch.Begin();
 
