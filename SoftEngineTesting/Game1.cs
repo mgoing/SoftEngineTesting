@@ -17,15 +17,20 @@ namespace SoftEngineTesting
         // Map and player setup
         private int[,] map = new int[,]
         {
-        { 1, 1, 1, 1, 1 },
-        { 1, 0, 0, 0, 1 },
-        { 1, 0, 1, 0, 1 },
-        { 1, 0, 0, 0, 1 },
-        { 1, 1, 1, 1, 1 }
+        { 1, 1, 1, 1, 1, 1, 1, 0, 1, 1 },
+        { 1, 0, 0, 0, 1, 0, 0, 0, 0, 1 },
+        { 1, 0, 1, 0, 0, 0, 0, 0, 0, 1 },
+        { 1, 0, 0, 0, 1, 1, 0, 0, 0, 1 },
+        { 1, 1, 0, 1, 1, 0, 0, 0, 0, 1 },
+        { 1, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
+        { 1, 1, 1, 0, 0, 0, 0, 0, 0, 1 },
+        { 1, 0, 0, 0, 0, 0, 0, 0, 1, 1 },
+        { 1, 0, 0, 1, 1, 1, 0, 0, 0, 1 },
+        { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 }
         };
 
-        private int mapWidth = 5;  // Number of columns
-        private int mapHeight = 5; // Number of rows
+        private int mapWidth = 10;  // Number of columns
+        private int mapHeight = 10; // Number of rows
 
         private Vector2 playerPos = new Vector2(2.5f, 2.5f);
         private Vector2 playerDir = new Vector2(1, 0);
