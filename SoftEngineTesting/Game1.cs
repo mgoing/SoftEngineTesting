@@ -29,7 +29,7 @@ namespace SoftEngineTesting
         private Vector2 playerPos = new Vector2(2.5f, 2.5f);
         private Vector2 playerDir = new Vector2(1, 0);
         private Vector2 plane = new Vector2(0, 0.66f);
-        private float moveSpeed = 0.1f;
+        private float moveSpeed = 0.5f;
         private float rotSpeed = 0.05f;
 
         public Game1()
@@ -62,32 +62,39 @@ namespace SoftEngineTesting
             if (state.IsKeyDown(Keys.D)) RotatePlayer(rotSpeed);
 
             // Handle movement
-            Vector2 newPlayerPos = playerPos;
+            if (state.IsKeyDown(Keys.W)) MovePlayer(moveSpeed);
+            if (state.IsKeyDown(Keys.S)) MovePlayer(-moveSpeed);
 
-            if (state.IsKeyDown(Keys.W))
-            {
-                newPlayerPos.X += playerDir.X * moveSpeed;
-                newPlayerPos.Y += playerDir.Y * moveSpeed;
-            }
-            if (state.IsKeyDown(Keys.S))
-            {
-                newPlayerPos.X -= playerDir.X * moveSpeed;
-                newPlayerPos.Y -= playerDir.Y * moveSpeed;
-            }
-
-            // Check for collisions
-            int mapX = (int)newPlayerPos.X;
-            int mapY = (int)newPlayerPos.Y;
-
-            if (mapX >= 0 && mapX < map.GetLength(1) && mapY >= 0 && mapY < map.GetLength(0) && map[mapX, mapY] == 0)
-            {
-                playerPos = newPlayerPos; // Update position only if no wall is in the way
-            }
-
-            System.Diagnostics.Debug.WriteLine($"PlayerPos: {playerPos}, PlayerDir: {playerDir}");
+            System.Diagnostics.Debug.WriteLine($"Player Position: X={playerPos.X:F2}, Y={playerPos.Y:F2}");
+            System.Diagnostics.Debug.WriteLine($"Player Direction: X={playerDir.X:F2}, Y={playerDir.Y:F2}");
+            System.Diagnostics.Debug.WriteLine(System.Environment.NewLine);
 
             base.Update(gameTime);
         }
+
+        private void MovePlayer(float speed)
+        {
+            Vector2 newPlayerPos = playerPos;
+
+            // Attempt to move in X direction
+            float newX = playerPos.X + playerDir.X * speed;
+            if (map[(int)newX, (int)playerPos.Y] == 0)
+            {
+                newPlayerPos.X = newX;
+            }
+
+            // Attempt to move in Y direction
+            float newY = playerPos.Y + playerDir.Y * speed;
+            if (map[(int)playerPos.X, (int)newY] == 0)
+            {
+                newPlayerPos.Y = newY;
+            }
+
+            // Update player position if movement is valid
+            playerPos = newPlayerPos;
+        }
+
+
 
         protected override void Draw(GameTime gameTime)
         {
