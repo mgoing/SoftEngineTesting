@@ -11,6 +11,16 @@ namespace SoftEngineTesting
         private SpriteBatch _spriteBatch;
         private BasicEffect _basicEffect;
         private VertexPositionColor[] _vertices;
+        private Texture2D _pixelTexture; //1x1 pixel texture
+
+
+        //constants for more control
+
+        private const float MOVE_SPEED = 3.0f; // Units per second
+        private const float ROTATE_SPEED = 2.0f; // Radians per second
+        private const float FOV_PLANE = 0.66f;
+        private const int SCREEN_WIDTH = 800;
+        private const int SCREEN_HEIGHT = 600;
 
 
 
@@ -32,16 +42,17 @@ namespace SoftEngineTesting
         private int mapWidth = 10;  // Number of columns
         private int mapHeight = 10; // Number of rows
 
-        private Vector2 playerPos = new Vector2(2.5f, 2.5f);
+        private Vector2 playerPos = new Vector2(1.5f, 1.5f);
         private Vector2 playerDir = new Vector2(1, 0);
-        private Vector2 plane = new Vector2(0, 0.66f);
+        private Vector2 plane = new Vector2(0, FOV_PLANE);
         private float moveSpeed = 0.1f;
         private float rotSpeed = 0.05f;
+
         private bool isColliding = false;
         private float collisionFlashDuration = 0.5f; // Half a second
         private float collisionFlashTimer = 0.0f;
         private Vector2 collisionPoint; // Location of the collision
-        private float collisionTimer; // Timer for displaying collision feedback
+        private float collisionTimer = 0.0f; // Timer for displaying collision feedback
         private const float collisionDisplayDuration = 0.5f; // Duration to show squares in seconds
        
 
@@ -59,9 +70,13 @@ namespace SoftEngineTesting
             mapWidth = map.GetLength(1); // Columns (Width)
             mapHeight = map.GetLength(0); // Rows (Height)
             
-            _graphics.PreferredBackBufferWidth = 800;
-            _graphics.PreferredBackBufferHeight = 600;
+            _graphics.PreferredBackBufferWidth = SCREEN_WIDTH;
+            _graphics.PreferredBackBufferHeight = SCREEN_HEIGHT;
             _graphics.ApplyChanges();
+
+            playerDir.Normalize();
+
+
 
             base.Initialize();
 
@@ -71,26 +86,59 @@ namespace SoftEngineTesting
         protected override void LoadContent()
         {
             _spriteBatch = new SpriteBatch(GraphicsDevice);
-
-            // TODO: use this.Content to load your game content here
+            _pixelTexture = new Texture2D(GraphicsDevice, 1, 1);
+            _pixelTexture.SetData(new[] { Color.White });
+            
         }
 
         protected override void Update(GameTime gameTime)
         {
             var state = Keyboard.GetState();
+            float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-            if (state.IsKeyDown(Keys.W)) playerPos += playerDir * moveSpeed;
-            if (state.IsKeyDown(Keys.S)) playerPos -= playerDir * moveSpeed;
-            if (state.IsKeyDown(Keys.A)) playerDir = Rotate(playerDir, -rotSpeed);
-            if (state.IsKeyDown(Keys.D)) playerDir = Rotate(playerDir, rotSpeed);
+            if (state.IsKeyDown(Keys.A))
+            {
+                float angle = -ROTATE_SPEED * deltaTime;
+                playerDir = Rotate(playerDir, angle);
+                plane = Rotate(plane, angle);
+
+
+            }
+            if (state.IsKeyDown(Keys.D))
+            {
+                float angle = ROTATE_SPEED * deltaTime;
+                playerDir = Rotate(playerDir, angle);
+                plane = Rotate(plane, angle);
+
+
+            }
+
 
             Vector2 newPlayerPos = playerPos;
 
-            // Update position based on input
-            if (state.IsKeyDown(Keys.W)) newPlayerPos += playerDir * moveSpeed;
-            if (state.IsKeyDown(Keys.S)) newPlayerPos -= playerDir * moveSpeed;
 
-            float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            float moveDistance = MOVE_SPEED * deltaTime;
+
+            if (state.IsKeyDown(Keys.W))
+            {
+                newPlayerPos += playerDir * moveDistance;
+            }
+            if (state.IsKeyDown(Keys.S))
+            {
+                newPlayerPos -= playerDir * moveDistance;
+            }
+
+            if (IsValidPosition(newPlayerPos))
+            {
+                playerPos = newPlayerPos;
+
+            }
+            else
+            {
+                isColliding = true;
+                collisionPoint = new Vector2((int)newPlayerPos.X, (int)newPlayerPos.Y);
+                collisionTimer = collisionDisplayDuration;
+            }
 
             // Update collision timer
             if (isColliding)
@@ -102,88 +150,81 @@ namespace SoftEngineTesting
                 }
             }
 
-            // Check collision with walls
-            int newMapX = (int)newPlayerPos.X;
-            int newMapY = (int)newPlayerPos.Y;
-
-            if (newMapX >= 0 && newMapX < mapWidth && newMapY >= 0 && newMapY < mapHeight)
-            {
-                if (map[newMapX, newMapY] == 0) // Not a wall
-                {
-                    playerPos = newPlayerPos;
-                }
-                else
-                {
-                    // Collision detected, store collision point and start feedback
-                    isColliding = true;
-                    collisionPoint = new Vector2(newMapX, newMapY);
-                    collisionTimer = collisionDisplayDuration;
-                }
-            }
-
-
-
-            // Handle rotation
-            if (state.IsKeyDown(Keys.A)) playerDir = Rotate(playerDir, -rotSpeed);
-            if (state.IsKeyDown(Keys.D)) playerDir = Rotate(playerDir, rotSpeed);
-
-            // Update collision flash timer
-            if (collisionFlashTimer > 0)
-            {
-                collisionFlashTimer -= (float)gameTime.ElapsedGameTime.TotalSeconds;
-                if (collisionFlashTimer <= 0)
-                {
-                    isColliding = false; // Stop flashing
-                }
-            }
-
             base.Update(gameTime);
+        }
+
+        private bool IsValidPosition(Vector2 pos)
+        {
+            int mapX = (int)pos.X;
+            int mapY = (int)pos.Y;
+
+            // Boundary check first
+            if (mapX < 0 || mapX >= mapWidth || mapY < 0 || mapY >= mapHeight)
+            {
+                return false;
+            }
+
+            // Wall check
+            return map[mapY, mapX] == 0; // Note: correct indexing [row, col] = [Y, X]
         }
 
         protected override void Draw(GameTime gameTime)
         {
             GraphicsDevice.Clear(Color.Black);
-
-            // Create a reusable 1x1 pixel texture
-            Texture2D pixel = new Texture2D(GraphicsDevice, 1, 1);
-            pixel.SetData(new[] { Color.White });
-
             _spriteBatch.Begin();
+            // Create a reusable 1x1 pixel texture
+            _spriteBatch.Draw(
+                _pixelTexture,
+                new Rectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT / 2),
+                Color.DarkSlateGray
+            );
 
-            // Draw floor and ceiling
-            for (int y = 0; y < _graphics.PreferredBackBufferHeight / 2; y++) // Ceiling
+            //floor
+            _spriteBatch.Draw(
+                _pixelTexture,
+                new Rectangle(0, SCREEN_HEIGHT / 2, SCREEN_WIDTH, SCREEN_HEIGHT / 2),
+                Color.Gray
+            );
+
+            // Raycasting for walls
+            RenderWalls();
+
+            // Draw collision feedback
+            if (isColliding)
             {
-                Color ceilingColor = Color.DarkSlateGray; // Adjust as desired
-                _spriteBatch.Draw(pixel, new Rectangle(0, y, _graphics.PreferredBackBufferWidth, 1), ceilingColor);
+                DrawCollisionFeedback();
             }
 
-            for (int y = _graphics.PreferredBackBufferHeight / 2; y < _graphics.PreferredBackBufferHeight; y++) // Floor
-            {
-                Color floorColor = Color.Gray; // Adjust as desired
-                _spriteBatch.Draw(pixel, new Rectangle(0, y, _graphics.PreferredBackBufferWidth, 1), floorColor);
-            }
+            _spriteBatch.End();
 
-            // Draw walls using raycasting (existing logic)
-            for (int x = 0; x < _graphics.PreferredBackBufferWidth; x++)
+            
+
+
+            base.Draw(gameTime);
+        }
+
+
+        private void RenderWalls()
+        {
+            for (int x = 0; x < SCREEN_WIDTH; x++)
             {
-                float cameraX = 2 * x / (float)_graphics.PreferredBackBufferWidth - 1; // [-1, 1]
+                // Calculate ray direction
+                float cameraX = 2 * x / (float)SCREEN_WIDTH - 1;
                 Vector2 rayDir = playerDir + plane * cameraX;
 
+                // DDA setup
                 int mapX = (int)playerPos.X;
                 int mapY = (int)playerPos.Y;
 
+                Vector2 deltaDist = new Vector2(
+                    rayDir.X == 0 ? float.MaxValue : Math.Abs(1 / rayDir.X),
+                    rayDir.Y == 0 ? float.MaxValue : Math.Abs(1 / rayDir.Y)
+                );
+
+                Point step;
                 Vector2 sideDist;
 
-                Vector2 deltaDist = new Vector2(
-                    (rayDir.X == 0) ? 1e30f : Math.Abs(1 / rayDir.X),
-                    (rayDir.Y == 0) ? 1e30f : Math.Abs(1 / rayDir.Y)
-                );
-                float perpWallDist;
-
-                Point step = new Point();
-                bool hit = false;
-                int side = 0;
-
+                // Calculate step and initial sideDist
                 if (rayDir.X < 0)
                 {
                     step.X = -1;
@@ -194,6 +235,7 @@ namespace SoftEngineTesting
                     step.X = 1;
                     sideDist.X = (mapX + 1.0f - playerPos.X) * deltaDist.X;
                 }
+
                 if (rayDir.Y < 0)
                 {
                     step.Y = -1;
@@ -205,14 +247,15 @@ namespace SoftEngineTesting
                     sideDist.Y = (mapY + 1.0f - playerPos.Y) * deltaDist.Y;
                 }
 
-                while (!hit)
-                {
-                    if (mapX < 0 || mapX >= mapWidth || mapY < 0 || mapY >= mapHeight)
-                    {
-                        hit = true;
-                        break;
-                    }
+                // Perform DDA
+                bool hit = false;
+                int side = 0;
+                int maxSteps = Math.Max(mapWidth, mapHeight) * 2; // Safety limit
+                int steps = 0;
 
+                while (!hit && steps < maxSteps)
+                {
+                    // Step to next grid line
                     if (sideDist.X < sideDist.Y)
                     {
                         sideDist.X += deltaDist.X;
@@ -226,55 +269,68 @@ namespace SoftEngineTesting
                         side = 1;
                     }
 
-                    if (map[mapX, mapY] > 0) hit = true;
+                    // CRITICAL: Check bounds BEFORE accessing array
+                    if (mapX < 0 || mapX >= mapWidth || mapY < 0 || mapY >= mapHeight)
+                    {
+                        hit = true; // Hit boundary
+                        break;
+                    }
+
+                    // Check if ray hit a wall
+                    if (map[mapY, mapX] > 0)
+                    {
+                        hit = true;
+                    }
+
+                    steps++;
                 }
 
-                if (side == 0)
-                    perpWallDist = (mapX - playerPos.X + (1 - step.X) / 2) / rayDir.X;
-                else
-                    perpWallDist = (mapY - playerPos.Y + (1 - step.Y) / 2) / rayDir.Y;
-
-                int lineHeight = (int)(_graphics.PreferredBackBufferHeight / perpWallDist);
-
-                int drawStart = -lineHeight / 2 + _graphics.PreferredBackBufferHeight / 2;
-                if (drawStart < 0) drawStart = 0;
-                int drawEnd = lineHeight / 2 + _graphics.PreferredBackBufferHeight / 2;
-                if (drawEnd >= _graphics.PreferredBackBufferHeight) drawEnd = _graphics.PreferredBackBufferHeight - 1;
-
-                Color color = (side == 1) ? Color.Red : Color.DarkRed;
-
-                _spriteBatch.Draw(pixel, new Rectangle(x, drawStart, 1, drawEnd - drawStart), color);
-            }
-
-            if (isColliding)
-            {
-                int squareSize = 10; // Size of each square
-                int numSquares = 5; // Number of squares to display
-                for (int i = 0; i < numSquares; i++)
+                // Calculate distance and render wall slice
+                if (hit)
                 {
-                    // Offset each square slightly for a flashing effect
-                    int offsetX = (i % 2 == 0 ? 1 : -1) * squareSize * (i + 1);
-                    int offsetY = (i % 2 == 0 ? -1 : 1) * squareSize * (i + 1);
+                    float perpWallDist;
+                    if (side == 0)
+                        perpWallDist = (mapX - playerPos.X + (1 - step.X) / 2) / rayDir.X;
+                    else
+                        perpWallDist = (mapY - playerPos.Y + (1 - step.Y) / 2) / rayDir.Y;
+
+                    // Prevent division by zero or extremely close walls
+                    perpWallDist = Math.Max(perpWallDist, 0.1f);
+
+                    int lineHeight = (int)(SCREEN_HEIGHT / perpWallDist);
+
+                    int drawStart = Math.Max(0, -lineHeight / 2 + SCREEN_HEIGHT / 2);
+                    int drawEnd = Math.Min(SCREEN_HEIGHT - 1, lineHeight / 2 + SCREEN_HEIGHT / 2);
+
+                    // Different colors for X and Y sides for depth perception
+                    Color color = side == 1 ? Color.Red : Color.DarkRed;
 
                     _spriteBatch.Draw(
-                        pixel,
-                        new Rectangle(
-                            (int)(collisionPoint.X * squareSize + offsetX),
-                            (int)(collisionPoint.Y * squareSize + offsetY),
-                            squareSize,
-                            squareSize
-                        ),
-                        Color.White
+                        _pixelTexture,
+                        new Rectangle(x, drawStart, 1, drawEnd - drawStart),
+                        color
                     );
                 }
             }
-
-            _spriteBatch.End();
-
-            base.Draw(gameTime);
         }
 
+        //visual wall collision feedback
+        private void DrawCollisionFeedback()
+        {
+            // Draw a pulsing indicator at the top of the screen
+            float alpha = collisionTimer / collisionDisplayDuration;
+            Color flashColor = Color.Yellow * alpha;
 
+            int barHeight = 10;
+            _spriteBatch.Draw(
+                _pixelTexture,
+                new Rectangle(0, 0, SCREEN_WIDTH, barHeight),
+                flashColor
+            );
+
+            // Optional: Draw collision text
+            // If you have a SpriteFont loaded, you could display "COLLISION!" here
+        }
 
 
         private Vector2 Rotate(Vector2 v, float angle)
@@ -283,5 +339,17 @@ namespace SoftEngineTesting
             float sin = (float)Math.Sin(angle);
             return new Vector2(v.X * cos - v.Y * sin, v.X * sin + v.Y * cos);
         }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _pixelTexture?.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+
+
+
     }
 }
